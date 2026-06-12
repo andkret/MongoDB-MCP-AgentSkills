@@ -1,7 +1,19 @@
 # MongoDB Live Solar Device State Tracker
 ## Step-by-Step Project Guide
 
-A live operational data store powered by Atlas Stream Processing, designed and built with Claude Code + MongoDB Agent Skills.
+---
+
+## What This Project Is About
+
+The goal is to show off two things: **MongoDB Agent Skills** and the **MongoDB MCP Server**, both running inside Claude Code.
+
+Agent Skills give Claude Code MongoDB expertise — schema design, query optimization, stream processing patterns. The MCP Server gives Claude Code live access to your Atlas cluster so it can inspect real data, create indexes, and query your database in plain English.
+
+To make this tangible we build a real streaming application. Atlas Stream Processing reads a live solar device stream into a raw collection first. Then Claude Code uses the MCP Server to explore that real data, and Agent Skills to design the right schema from what it actually finds. It builds the upsert pipeline, creates the indexes, and at the end queries the live data through MCP in plain English — no code needed.
+
+The key point: Agent Skills and MCP work together. Skills provide the MongoDB knowledge, MCP provides the live data access. Neither is enough on its own.
+
+The stack: MongoDB Atlas + Atlas Stream Processing + Claude Code + Agent Skills + MCP Server.
 
 ---
 
@@ -112,51 +124,64 @@ Now you understand the actual field shape — perfect input for the schema desig
 ## Phase 2: Local Dev Setup
 
 ### 2.1 Prerequisites
-- **[Node.js v22 LTS](https://nodejs.org/)** — `.pkg` installer
-  - ⚠️ Node 18 will fail. Must be v20+
+- **Node.js v22 or higher** — required for the MongoDB MCP Server to run. See the project GitHub for installation instructions.
 - **[VS Code](https://code.visualstudio.com/)**
 - **[Claude Code](https://claude.ai/code)** — installed and authenticated
 - Create a project folder and open it in VS Code
 
 ### 2.2 Install the MongoDB Plugin in Claude Code
-Inside Claude Code:
-- Open **Manage Plugins**
-- Search for **MongoDB**
-- Install → choose **Global** (available across all projects)
+The MongoDB Claude plugin bundles BOTH the Agent Skills AND the MongoDB MCP Server in one install. You do not need to install them separately.
 
-This installs the **Agent Skills** (the SKILL.md files).
+Install it directly from the Claude Code console — just run:
+```
+/plugin install mongodb@claude-plugins-official
+```
 
-To verify, type in Claude Code:
+This installs everything cleanly: the Agent Skills (the SKILL.md files) and the bundled MCP Server. Nothing is installed through VS Code.
+
+To verify the skills are there, type in Claude Code:
 ```
 /mongodb-schema-design
 ```
 Claude responds with a summary of what the skill knows — that's your "show don't tell" video moment.
 
-### 2.3 Connect Claude Code to Atlas (MCP Server)
-This is **separate from the plugin** — it gives Claude Code live access to your cluster.
+### 2.3 Configure the MCP Server Connection String
+The plugin installed the MCP Server, but it still needs your Atlas connection string before it can reach your cluster. There are two ways to do this.
 
-In your terminal:
+**Option A — use the setup skill (recommended for the video)**
+
+In Claude Code, run:
+```
+/mongodb-mcp-setup
+```
+The skill walks you through it: pick "Connection String", choose read-write access, and it guides you to add your connection string to your shell profile. This is a nice moment to show on camera — a skill that configures the MCP Server for you.
+
+**Option B — set the environment variable manually**
+
+Add your connection string to your shell profile (`~/.zshrc` or `~/.bash_profile`):
 ```bash
-claude mcp add mongodb-mcp-server -- npx -y mongodb-mcp-server@latest --connectionString "your-connection-string-here"
+export MDB_MCP_CONNECTION_STRING="mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/"
+```
+Then reload it:
+```bash
+source ~/.zshrc
 ```
 
-Verify:
-```bash
-claude mcp list
-```
-You should see `mongodb-mcp-server: ... ✓ Connected`.
+⚠️ The environment variable must be set BEFORE Claude Code starts so it gets inherited. After setting it, fully quit and reopen Claude Code.
 
-⚠️ **Security note:** The connection string with password is stored in plain text in the MCP config and visible via `claude mcp list`. Rotate the password before recording the video, then again after publishing.
+⚠️ **Security note:** Your connection string contains your password in plain text. Rotate the password before recording the video, then again after publishing.
 
-Restart VS Code completely. Test in Claude Code:
+### 2.4 Test the Connection
+Restart Claude Code completely, then ask:
 > *"List the collections in the solar-data database"*
 
-When asked permission, choose **"Yes, allow for this project (just you)"**.
+When asked permission, choose **"Yes, allow for this project (just you)"**. Claude should list your collections, which confirms the MCP Server is connected and using your connection string.
 
 > **Plugin vs MCP — what does what:**
-> - Plugin = Agent Skills (MongoDB expertise baked into Claude)
-> - MCP = Live connection to Atlas (so Claude can actually query)
-> - You need both
+> - The plugin bundles BOTH the Agent Skills and the MCP Server
+> - Agent Skills = MongoDB expertise baked into Claude
+> - MCP Server = live connection to Atlas (so Claude can query your data)
+> - One plugin install gets you both, you just configure the connection string
 
 ---
 
@@ -343,7 +368,7 @@ Ask Claude to show the generated query each time — that's the Natural Language
 | Live state store | `device_state` — regular collection, one doc per device |
 | Historical archive | `raw-data` — Time-Series collection |
 | Agent Skills | MongoDB plugin via Claude Code marketplace |
-| MCP connection | `claude mcp add` with Atlas connection string |
+| MCP connection | Bundled in the plugin, configured with `MDB_MCP_CONNECTION_STRING` |
 | Live data exploration | Claude Code + MCP (Natural Language Querying skill) |
 
 ---
@@ -354,7 +379,8 @@ Ask Claude to show the generated query each time — that's the Natural Language
 - **No stock price sample stream** — only `sample_stream_solar` is available.
 - **Time-Series collections don't support upserts** — use a regular collection for live state.
 - **Node.js must be v22** — MCP server fails on v18. Use the nodejs.org `.pkg` installer.
-- **Plugin ≠ MCP** — Plugin gives Skills, `claude mcp add` gives Atlas access. You need both.
+- **The plugin bundles both Skills AND the MCP Server** — one install gets you both. You just need to configure the MCP Server with your connection string (via the `/mongodb-mcp-setup` skill or the `MDB_MCP_CONNECTION_STRING` environment variable). Do not use `claude mcp add`, that registers a duplicate server.
+- **The connection string env var must be set before Claude Code starts** — set it in your shell profile, then fully restart Claude Code so it gets inherited.
 - **Don't install the VS Code MongoDB extension AND the Claude Code plugin** — they both register MCP servers and conflict. Use only the Claude Code plugin.
 - **Connection string is stored in plain text** in `claude mcp list` output. Rotate password before/after recording.
 - **Atlas UI Stream Processor accepts JSON with `name` + `pipeline`** wrapper — not just an array.
